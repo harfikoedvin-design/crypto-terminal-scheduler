@@ -2,7 +2,7 @@ name: Crypto Terminal Collector
 
 on:
   schedule:
-    - cron: "*/15 * * * *"
+    - cron: "*/5 * * * *"
   workflow_dispatch:
 
 permissions:
@@ -29,6 +29,31 @@ jobs:
           oidc_token="$(jq -er '.value' <<<"${token_json}")"
           echo "::add-mask::${oidc_token}"
           echo "token=${oidc_token}" >> "${GITHUB_OUTPUT}"
+
+      - name: Verify public OIDC claim shape
+        shell: bash
+        env:
+          OIDC_TOKEN: ${{ steps.oidc.outputs.token }}
+        run: |
+          set -euo pipefail
+          node -e '
+            const payload = process.env.OIDC_TOKEN.split(".")[1];
+            const claims = JSON.parse(Buffer.from(payload, "base64url").toString("utf8"));
+            const safe = {
+              iss: claims.iss,
+              aud: claims.aud,
+              sub: claims.sub,
+              repository: claims.repository,
+              repository_visibility: claims.repository_visibility,
+              ref: claims.ref,
+              event_name: claims.event_name,
+              workflow_ref: claims.workflow_ref,
+              iat: claims.iat,
+              nbf: claims.nbf,
+              exp: claims.exp
+            };
+            console.log(JSON.stringify(safe));
+          '
 
       - name: Run terminal background collector
         shell: bash
